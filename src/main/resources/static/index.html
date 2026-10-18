@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Offline - Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+    <div class="logo">
+        <h1>PDV OFFLINE</h1>
+        <p>Sistema de Ponto de Venda</p>
+    </div>
+    <nav>
+        <a href="index.html" class="ativo"><span class="icone">&#128202;</span> Dashboard</a>
+        <a href="pdv.html"><span class="icone">&#128722;</span> PDV / Vendas</a>
+        <a href="produtos.html"><span class="icone">&#128230;</span> Produtos &amp; Estoque</a>
+        <a href="clientes.html"><span class="icone">&#128101;</span> Clientes</a>
+        <a href="historico.html"><span class="icone">&#128196;</span> Hist&oacute;rico</a>
+        <a href="fiscais.html"><span class="icone">&#128220;</span> Documentos Fiscais</a>
+        <a href="sincronizacao.html"><span class="icone">&#128260;</span> Sincroniza&ccedil;&atilde;o</a>
+    </nav>
+</aside>
+
+<!-- CONTEUDO PRINCIPAL -->
+<main class="main-content">
+    <div class="cabecalho-pagina">
+        <h2>Dashboard</h2>
+        <div class="sync-status">
+            <span class="sync-indicador offline" id="sync-indicador"></span>
+            <span id="sync-texto">Verificando...</span>
+            <button class="btn btn-primario" style="padding:6px 12px; font-size:12px;" onclick="sincronizarAgora()">Sincronizar</button>
+        </div>
+    </div>
+
+    <!-- CARDS DE RESUMO -->
+    <div class="grid-cards">
+        <div class="card sucesso">
+            <div class="card-label">Vendas Hoje</div>
+            <div class="card-valor" id="card-vendas-hoje">R$ 0,00</div>
+            <div class="card-sub" id="card-qtd-hoje">0 vendas</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Ticket M&eacute;dio</div>
+            <div class="card-valor" id="card-ticket-medio">R$ 0,00</div>
+            <div class="card-sub">M&eacute;dia por venda hoje</div>
+        </div>
+        <div class="card alerta">
+            <div class="card-label">Estoque Baixo</div>
+            <div class="card-valor" id="card-estoque-baixo">0</div>
+            <div class="card-sub">Produtos abaixo do m&iacute;nimo</div>
+        </div>
+        <div class="card erro">
+            <div class="card-label">Pendentes de Sync</div>
+            <div class="card-valor" id="card-pendentes-sync">0</div>
+            <div class="card-sub" id="card-ultimo-sync">Nunca sincronizado</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Total do M&ecirc;s</div>
+            <div class="card-valor" id="card-total-mes">R$ 0,00</div>
+            <div class="card-sub">Acumulado do m&ecirc;s</div>
+        </div>
+    </div>
+
+    <!-- GRAFICOS -->
+    <div class="grid-paineis">
+        <div class="painel">
+            <h3>Vendas dos &Uacute;ltimos 7 Dias</h3>
+            <div class="grafico-container">
+                <canvas id="graficoVendas7Dias"></canvas>
+            </div>
+        </div>
+        <div class="painel">
+            <h3>Formas de Pagamento (Hoje)</h3>
+            <div class="grafico-container">
+                <canvas id="graficoPagamento"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABELA ESTOQUE BAIXO -->
+    <div class="tabela-wrapper">
+        <h3>Produtos com Estoque Baixo</h3>
+        <table id="tabela-estoque-baixo">
+            <thead>
+                <tr>
+                    <th>C&oacute;digo</th>
+                    <th>Produto</th>
+                    <th>Categoria</th>
+                    <th>Estoque Atual</th>
+                    <th>M&iacute;nimo</th>
+                    <th>Pre&ccedil;o</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="6" style="text-align:center; color:#999;">Carregando...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<script>
+let graficoVendas, graficoPagamento;
+
+async function carregarDashboard() {
+    try {
+        const res = await fetch('/api/dashboard');
+        const dados = await res.json();
+
+        document.getElementById('card-vendas-hoje').textContent = formatarMoeda(dados.totalHoje);
+        document.getElementById('card-qtd-hoje').textContent = dados.qtdVendasHoje + ' vendas';
+        document.getElementById('card-ticket-medio').textContent = formatarMoeda(dados.ticketMedio);
+        document.getElementById('card-estoque-baixo').textContent = dados.qtdEstoqueBaixo;
+        document.getElementById('card-pendentes-sync').textContent = dados.pendentesSync;
+        document.getElementById('card-total-mes').textContent = formatarMoeda(dados.totalMes);
+
+        if (dados.ultimoSync) {
+            document.getElementById('card-ultimo-sync').textContent =
+                'Ultimo sync: ' + new Date(dados.ultimoSync).toLocaleString('pt-BR');
+        }
+
+        // Tabela estoque baixo
+        const tbody = document.querySelector('#tabela-estoque-baixo tbody');
+        if (dados.produtosEstoqueBaixo.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#2e7d32;">Nenhum produto com estoque baixo</td></tr>';
+        } else {
+            tbody.innerHTML = dados.produtosEstoqueBaixo.map(p => `
+                <tr>
+                    <td>${p.codigoBarras}</td>
+                    <td>${p.nome}</td>
+                    <td>${p.categoria || ''}</td>
+                    <td><span class="badge badge-erro">${p.estoqueAtual}</span></td>
+                    <td>${p.estoqueMinimo}</td>
+                    <td>${formatarMoeda(p.precoVenda)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Grafico vendas 7 dias
+        const labels7 = dados.vendas7Dias.map(d => d.data);
+        const valores7 = dados.vendas7Dias.map(d => parseFloat(d.total));
+        if (graficoVendas) graficoVendas.destroy();
+        graficoVendas = new Chart(document.getElementById('graficoVendas7Dias'), {
+            type: 'bar',
+            data: {
+                labels: labels7,
+                datasets: [{
+                    label: 'Vendas (R$)',
+                    data: valores7,
+                    backgroundColor: 'rgba(30,136,229,0.7)',
+                    borderColor: '#1e88e5',
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { callback: v => 'R$ ' + v } }
+                }
+            }
+        });
+
+        // Grafico formas de pagamento
+        const formas = Object.keys(dados.formasPagamento);
+        const valoresF = formas.map(f => parseFloat(dados.formasPagamento[f]));
+        if (graficoPagamento) graficoPagamento.destroy();
+        graficoPagamento = new Chart(document.getElementById('graficoPagamento'), {
+            type: 'doughnut',
+            data: {
+                labels: formas,
+                datasets: [{
+                    data: valoresF,
+                    backgroundColor: ['#1e88e5','#43a047','#f9a825','#8e24aa','#c62828']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    } catch (e) {
+        console.error('Erro ao carregar dashboard:', e);
+    }
+}
+
+async function verificarSync() {
+    try {
+        const res = await fetch('/api/sync/status');
+        const s = await res.json();
+        const indicador = document.getElementById('sync-indicador');
+        const texto = document.getElementById('sync-texto');
+        if (s.pendentes > 0) {
+            indicador.className = 'sync-indicador pendente';
+            texto.textContent = s.pendentes + ' pendente(s)';
+        } else {
+            indicador.className = 'sync-indicador online';
+            texto.textContent = 'Sincronizado';
+        }
+    } catch (e) {
+        document.getElementById('sync-indicador').className = 'sync-indicador offline';
+        document.getElementById('sync-texto').textContent = 'Offline';
+    }
+}
+
+async function sincronizarAgora() {
+    const res = await fetch('/api/sync/sincronizar', { method: 'POST' });
+    const r = await res.json();
+    alert(r.mensagem);
+    carregarDashboard();
+    verificarSync();
+}
+
+function formatarMoeda(valor) {
+    return 'R$ ' + parseFloat(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Atualiza a cada 30 segundos
+carregarDashboard();
+verificarSync();
+setInterval(() => { carregarDashboard(); verificarSync(); }, 30000);
+</script>
+</body>
+</html>

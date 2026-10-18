@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Offline - Documentos Fiscais</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="logo">
+        <h1>PDV OFFLINE</h1>
+        <p>Sistema de Ponto de Venda</p>
+    </div>
+    <nav>
+        <a href="index.html"><span class="icone">&#128202;</span> Dashboard</a>
+        <a href="pdv.html"><span class="icone">&#128722;</span> PDV / Vendas</a>
+        <a href="produtos.html"><span class="icone">&#128230;</span> Produtos &amp; Estoque</a>
+        <a href="clientes.html"><span class="icone">&#128101;</span> Clientes</a>
+        <a href="historico.html"><span class="icone">&#128196;</span> Hist&oacute;rico</a>
+        <a href="fiscais.html" class="ativo"><span class="icone">&#128220;</span> Documentos Fiscais</a>
+        <a href="sincronizacao.html"><span class="icone">&#128260;</span> Sincroniza&ccedil;&atilde;o</a>
+    </nav>
+</aside>
+
+<main class="main-content">
+    <div class="cabecalho-pagina">
+        <h2>Documentos Fiscais</h2>
+        <div style="background:#fff8e1; padding:10px 16px; border-radius:8px; font-size:13px;">
+            <strong>Modo Fiscal:</strong> <span id="modo-fiscal" style="color:#e65100;">Carregando...</span>
+            &nbsp;|&nbsp; Documentos NFC-e (65) e Cupom Fiscal SAT (59)
+        </div>
+    </div>
+
+    <div class="tabela-wrapper">
+        <table id="tabela-fiscais">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Modelo</th>
+                    <th>N&uacute;mero</th>
+                    <th>S&eacute;rie</th>
+                    <th>Data Emiss&atilde;o</th>
+                    <th>Valor Total</th>
+                    <th>Status</th>
+                    <th>Chave Acesso</th>
+                    <th>A&ccedil;&otilde;es</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</main>
+
+<!-- MODAL CUPOM -->
+<div id="modal-cupom" class="modal-overlay" style="display:none;">
+    <div class="modal" style="max-width:600px;">
+        <h3 id="modal-titulo-cupom">Documento Fiscal</h3>
+        <pre id="cupom-conteudo" style="background:#f5f5f5; padding:16px; border-radius:8px; font-family:monospace; font-size:12px; white-space:pre-wrap; max-height:60vh; overflow-y:auto;"></pre>
+        <div class="modal-rodape">
+            <button class="btn btn-secundario" onclick="fecharModal()">Fechar</button>
+            <button class="btn btn-primario" onclick="imprimirCupom()">Imprimir</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let conteudoCupom = '';
+
+async function carregarDocumentos() {
+    try {
+        const res = await fetch('/api/vendas/fiscal');
+        const docs = await res.json();
+        renderizar(docs);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function renderizar(docs) {
+    const tbody = document.querySelector('#tabela-fiscais tbody');
+    if (docs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#999; padding:40px;">Nenhum documento fiscal emitido. Realize uma venda no PDV.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = docs.map(d => `
+        <tr>
+            <td>${d.id}</td>
+            <td><strong>${d.modelo}</strong><br><small>${d.modelo === '65' ? 'NFC-e' : d.modelo === '59' ? 'Cupom SAT' : 'NF-e'}</small></td>
+            <td>${d.numero}</td>
+            <td>${d.serie}</td>
+            <td>${new Date(d.dataEmissao).toLocaleString('pt-BR')}</td>
+            <td><strong>R$ ${parseFloat(d.valorTotal).toFixed(2)}</strong></td>
+            <td><span class="badge ${d.status === 'SIMULADO' || d.status === 'AUTORIZADO' ? 'badge-sucesso' : 'badge-alerta'}">${d.status}</span></td>
+            <td><small style="word-break:break-all;">${d.chaveAcesso ? d.chaveAcesso.substring(0,20) + '...' : '-'}</small></td>
+            <td>
+                <button class="btn btn-secundario" style="padding:4px 10px;" onclick="verCupom(${d.id})">Cupom</button>
+                <button class="btn btn-secundario" style="padding:4px 10px;" onclick="verXml(${d.id})">XML</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function verCupom(id) {
+    const res = await fetch(`/api/vendas/fiscal/danfe/${id}`);
+    conteudoCupom = await res.text();
+    document.getElementById('modal-titulo-cupom').textContent = 'Cupom Fiscal / DANFE';
+    document.getElementById('cupom-conteudo').textContent = conteudoCupom;
+    document.getElementById('modal-cupom').style.display = 'flex';
+}
+
+async function verXml(id) {
+    const res = await fetch(`/api/vendas/fiscal/xml/${id}`);
+    conteudoCupom = await res.text();
+    document.getElementById('modal-titulo-cupom').textContent = 'XML do Documento Fiscal';
+    document.getElementById('cupom-conteudo').textContent = conteudoCupom;
+    document.getElementById('modal-cupom').style.display = 'flex';
+}
+
+function fecharModal() {
+    document.getElementById('modal-cupom').style.display = 'none';
+}
+
+function imprimirCupom() {
+    const janela = window.open('', '', 'width=450,height=700');
+    janela.document.write('<pre style="font-family:monospace; font-size:11px;">' + conteudoCupom + '</pre>');
+    janela.document.close();
+    janela.print();
+}
+
+carregarDocumentos();
+</script>
+</body>
+</html>

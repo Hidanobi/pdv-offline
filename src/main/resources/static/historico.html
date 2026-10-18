@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Offline - Hist&oacute;rico de Vendas</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="logo">
+        <h1>PDV OFFLINE</h1>
+        <p>Sistema de Ponto de Venda</p>
+    </div>
+    <nav>
+        <a href="index.html"><span class="icone">&#128202;</span> Dashboard</a>
+        <a href="pdv.html"><span class="icone">&#128722;</span> PDV / Vendas</a>
+        <a href="produtos.html"><span class="icone">&#128230;</span> Produtos &amp; Estoque</a>
+        <a href="clientes.html"><span class="icone">&#128101;</span> Clientes</a>
+        <a href="historico.html" class="ativo"><span class="icone">&#128196;</span> Hist&oacute;rico</a>
+        <a href="fiscais.html"><span class="icone">&#128220;</span> Documentos Fiscais</a>
+        <a href="sincronizacao.html"><span class="icone">&#128260;</span> Sincroniza&ccedil;&atilde;o</a>
+    </nav>
+</aside>
+
+<main class="main-content">
+    <div class="cabecalho-pagina">
+        <h2>Hist&oacute;rico de Vendas</h2>
+    </div>
+
+    <div class="tabela-wrapper">
+        <div style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+            <input type="date" id="data-inicio" style="padding:10px; border-radius:8px; border:1px solid #e0e0e0;">
+            <input type="date" id="data-fim" style="padding:10px; border-radius:8px; border:1px solid #e0e0e0;">
+            <button class="btn btn-primario" onclick="buscarPorPeriodo()">Filtrar</button>
+            <button class="btn btn-secundario" onclick="carregarVendas()">Todas</button>
+        </div>
+        <table id="tabela-vendas">
+            <thead>
+                <tr>
+                    <th>N&uacute;mero</th>
+                    <th>Data</th>
+                    <th>Cliente</th>
+                    <th>Itens</th>
+                    <th>Total</th>
+                    <th>Pagamento</th>
+                    <th>Status</th>
+                    <th>Sync</th>
+                    <th>A&ccedil;&otilde;es</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</main>
+
+<!-- MODAL DETALHES -->
+<div id="modal-detalhes" class="modal-overlay" style="display:none;">
+    <div class="modal" style="max-width:700px;">
+        <h3>Detalhes da Venda</h3>
+        <div id="detalhes-conteudo"></div>
+        <div class="modal-rodape">
+            <button class="btn btn-primario" onclick="verCupom()">Ver Cupom Fiscal</button>
+            <button class="btn btn-secundario" onclick="fecharModal()">Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let vendaSelecionada = null;
+
+async function carregarVendas() {
+    const res = await fetch('/api/vendas');
+    const vendas = await res.json();
+    renderizar(vendas);
+}
+
+async function buscarPorPeriodo() {
+    const inicio = document.getElementById('data-inicio').value;
+    const fim = document.getElementById('data-fim').value;
+    if (!inicio || !fim) { alert('Selecione as datas'); return; }
+    const res = await fetch(`/api/vendas/periodo?inicio=${inicio}&fim=${fim}`);
+    renderizar(await res.json());
+}
+
+function renderizar(vendas) {
+    const tbody = document.querySelector('#tabela-vendas tbody');
+    tbody.innerHTML = vendas.map(v => `
+        <tr>
+            <td><strong>${v.numeroVenda}</strong></td>
+            <td>${new Date(v.dataVenda).toLocaleString('pt-BR')}</td>
+            <td>${v.nomeCliente || 'Consumidor Final'}</td>
+            <td>${v.itens ? v.itens.length : 0}</td>
+            <td><strong>R$ ${parseFloat(v.total).toFixed(2)}</strong></td>
+            <td>${v.formaPagamento || '-'}</td>
+            <td><span class="badge badge-sucesso">${v.status}</span></td>
+            <td>${v.sincronizada ? '<span class="badge badge-sucesso">OK</span>' : '<span class="badge badge-alerta">Pendente</span>'}</td>
+            <td>
+                <button class="btn btn-secundario" style="padding:4px 10px;" onclick='verDetalhes(${JSON.stringify(v.id)})'>Detalhes</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function verDetalhes(id) {
+    const res = await fetch(`/api/vendas/${id}`);
+    const v = await res.json();
+    vendaSelecionada = v;
+    let html = `
+        <p><strong>Venda:</strong> ${v.numeroVenda} &nbsp; <strong>Data:</strong> ${new Date(v.dataVenda).toLocaleString('pt-BR')}</p>
+        <p><strong>Cliente:</strong> ${v.nomeCliente || 'Consumidor Final'} ${v.cpfCliente ? '(' + v.cpfCliente + ')' : ''}</p>
+        <p><strong>Pagamento:</strong> ${v.formaPagamento}</p>
+        <table style="margin:16px 0;">
+            <thead><tr><th>Produto</th><th>Qtd</th><th>Valor Unit.</th><th>Total</th></tr></thead>
+            <tbody>
+    `;
+    v.itens.forEach(i => {
+        html += `<tr><td>${i.descricao}</td><td>${i.quantidade}</td><td>R$ ${parseFloat(i.precoUnitario).toFixed(2)}</td><td>R$ ${parseFloat(i.valorTotal).toFixed(2)}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    html += `<p style="text-align:right; font-size:20px;"><strong>Total: R$ ${parseFloat(v.total).toFixed(2)}</strong></p>`;
+    document.getElementById('detalhes-conteudo').innerHTML = html;
+    document.getElementById('modal-detalhes').style.display = 'flex';
+}
+
+function fecharModal() {
+    document.getElementById('modal-detalhes').style.display = 'none';
+}
+
+function verCupom() {
+    if (vendaSelecionada) {
+        window.open(`/api/vendas/fiscal/danfe/${vendaSelecionada.id}`, '_blank');
+    }
+}
+
+// Define datas de hoje por padrao
+document.getElementById('data-inicio').valueAsDate = new Date();
+document.getElementById('data-fim').valueAsDate = new Date();
+
+carregarVendas();
+</script>
+</body>
+</html>

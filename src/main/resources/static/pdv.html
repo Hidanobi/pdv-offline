@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Offline - Ponto de Venda</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="logo">
+        <h1>PDV OFFLINE</h1>
+        <p>Sistema de Ponto de Venda</p>
+    </div>
+    <nav>
+        <a href="index.html"><span class="icone">&#128202;</span> Dashboard</a>
+        <a href="pdv.html" class="ativo"><span class="icone">&#128722;</span> PDV / Vendas</a>
+        <a href="produtos.html"><span class="icone">&#128230;</span> Produtos &amp; Estoque</a>
+        <a href="clientes.html"><span class="icone">&#128101;</span> Clientes</a>
+        <a href="historico.html"><span class="icone">&#128196;</span> Hist&oacute;rico</a>
+        <a href="fiscais.html"><span class="icone">&#128220;</span> Documentos Fiscais</a>
+        <a href="sincronizacao.html"><span class="icone">&#128260;</span> Sincroniza&ccedil;&atilde;o</a>
+    </nav>
+</aside>
+
+<main class="main-content">
+    <div class="cabecalho-pagina">
+        <h2>PDV - Ponto de Venda</h2>
+        <div class="sync-status">
+            <span class="sync-indicador online" id="sync-indicador"></span>
+            <span id="sync-texto">Online</span>
+        </div>
+    </div>
+
+    <!-- LEITOR DE CODIGO DE BARRAS -->
+    <div class="painel" style="margin-bottom:20px;">
+        <label style="display:block; font-weight:600; margin-bottom:8px;">
+            &#128240; Leitor de C&oacute;digo de Barras (ou digite e pressione Enter)
+        </label>
+        <input type="text" id="codigo-barras" class="codigo-barras-input"
+               placeholder="Passe o produto no leitor ou digite o c&oacute;digo..."
+               autocomplete="off" autofocus>
+        <p style="font-size:12px; color:#999; margin-top:6px;">
+            O leitor de c&oacute;digo de barras funciona como teclado: o c&oacute;digo &eacute; inserido automaticamente seguido de Enter.
+        </p>
+    </div>
+
+    <div class="pdv-container">
+        <!-- CARRINHO -->
+        <div class="carrinho">
+            <h3 style="margin-bottom:14px;">Carrinho</h3>
+            <div class="carrinho-itens" id="carrinho-itens">
+                <p style="color:#999; text-align:center; padding:40px;">Nenhum item no carrinho</p>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-secundario" onclick="limparCarrinho()" style="flex:1;">Limpar</button>
+                <button class="btn btn-perigo" onclick="removerSelecionado()" style="flex:1;">Remover Item</button>
+            </div>
+        </div>
+
+        <!-- PAGAMENTO -->
+        <div class="resumo-pagamento">
+            <h3 style="margin-bottom:14px;">Pagamento</h3>
+
+            <div class="campo">
+                <label>Cliente (opcional)</label>
+                <input type="text" id="cliente-nome" placeholder="Nome do cliente">
+            </div>
+            <div class="campo">
+                <label>CPF / CNPJ (opcional)</label>
+                <input type="text" id="cliente-cpf" placeholder="000.000.000-00" maxlength="18">
+            </div>
+
+            <div class="campo">
+                <label>Desconto (R$)</label>
+                <input type="number" id="desconto" value="0" min="0" step="0.01" oninput="atualizarResumo()">
+            </div>
+
+            <div class="campo">
+                <label>Forma de Pagamento</label>
+                <select id="forma-pagamento">
+                    <option value="DINHEIRO">Dinheiro</option>
+                    <option value="CARTAO_CREDITO">Cart&atilde;o de Cr&eacute;dito</option>
+                    <option value="CARTAO_DEBITO">Cart&atilde;o de D&eacute;bito</option>
+                    <option value="PIX">PIX</option>
+                    <option value="CREDIARIO">Credi&aacute;rio</option>
+                </select>
+            </div>
+
+            <div class="campo">
+                <label>Valor Pago</label>
+                <input type="number" id="valor-pago" min="0" step="0.01" oninput="atualizarResumo()">
+            </div>
+
+            <div class="linha-resumo">
+                <span>Subtotal</span>
+                <span id="resumo-subtotal">R$ 0,00</span>
+            </div>
+            <div class="linha-resumo">
+                <span>Desconto</span>
+                <span id="resumo-desconto">R$ 0,00</span>
+            </div>
+            <div class="linha-resumo total">
+                <span>Total</span>
+                <span id="resumo-total">R$ 0,00</span>
+            </div>
+            <div class="linha-resumo">
+                <span>Troco</span>
+                <span id="resumo-troco" style="color:var(--cor-secundaria); font-weight:600;">R$ 0,00</span>
+            </div>
+
+            <button class="btn btn-sucesso" style="width:100%; justify-content:center; margin-top:16px; padding:14px; font-size:16px;" onclick="finalizarVenda()">
+                &#128176; Finalizar Venda &amp; Emitir Cupom
+            </button>
+        </div>
+    </div>
+</main>
+
+<!-- MODAL SUCESSO -->
+<div id="modal-sucesso" class="modal-overlay" style="display:none;">
+    <div class="modal">
+        <h3 style="color:var(--cor-sucesso);">&#10004; Venda Finalizada com Sucesso!</h3>
+        <p id="sucesso-numero" style="margin:10px 0;"></p>
+        <p id="sucesso-total" style="font-size:22px; font-weight:700; color:var(--cor-primaria); margin:10px 0;"></p>
+        <div id="sucesso-cupom" style="background:#f5f5f5; padding:14px; border-radius:8px; font-family:monospace; font-size:12px; white-space:pre-wrap; max-height:300px; overflow-y:auto; margin:14px 0;"></div>
+        <div class="modal-rodape">
+            <button class="btn btn-secundario" onclick="fecharModal()">Fechar</button>
+            <button class="btn btn-primario" onclick="imprimirCupom()">Imprimir Cupom</button>
+            <button class="btn btn-sucesso" onclick="novaVenda()">Nova Venda</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let carrinho = [];
+let vendaAtual = null;
+
+// Foco no campo de codigo de barras sempre (para o leitor)
+document.addEventListener('click', () => {
+    document.getElementById('codigo-barras').focus();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'F5') e.preventDefault();
+});
+
+const inputCodigo = document.getElementById('codigo-barras');
+inputCodigo.focus();
+
+// Leitor de codigo de barras - aciona ao pressionar Enter
+inputCodigo.addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+        const codigo = inputCodigo.value.trim();
+        if (codigo) {
+            await buscarProduto(codigo);
+        }
+        inputCodigo.value = '';
+        inputCodigo.focus();
+    }
+});
+
+async function buscarProduto(codigo) {
+    try {
+        const res = await fetch(`/api/produtos/codigoBarras/${codigo}`);
+        if (res.ok) {
+            const produto = await res.json();
+            adicionarAoCarrinho(produto);
+        } else {
+            mostrarToast('Produto nao encontrado: ' + codigo, 'erro');
+        }
+    } catch (e) {
+        mostrarToast('Erro de conexao (offline)', 'erro');
+    }
+}
+
+function adicionarAoCarrinho(produto) {
+    const itemExistente = carrinho.find(i => i.produto.id === produto.id);
+    if (itemExistente) {
+        itemExistente.quantidade += 1;
+    } else {
+        carrinho.push({
+            produto: produto,
+            quantidade: 1,
+            precoUnitario: parseFloat(produto.precoVenda),
+            desconto: 0
+        });
+    }
+    renderizarCarrinho();
+    atualizarResumo();
+}
+
+function renderizarCarrinho() {
+    const container = document.getElementById('carrinho-itens');
+    if (carrinho.length === 0) {
+        container.innerHTML = '<p style="color:#999; text-align:center; padding:40px;">Nenhum item no carrinho</p>';
+        return;
+    }
+    container.innerHTML = carrinho.map((item, idx) => `
+        <div class="carrinho-item">
+            <div>
+                <div style="font-weight:600;">${item.produto.nome}</div>
+                <div style="font-size:12px; color:#999;">Cod: ${item.produto.codigoBarras}</div>
+            </div>
+            <input type="number" value="${item.quantidade}" min="1"
+                   onchange="alterarQuantidade(${idx}, this.value)">
+            <span>R$ ${item.precoUnitario.toFixed(2)}</span>
+            <span style="font-weight:600;">R$ ${(item.quantidade * item.precoUnitario).toFixed(2)}</span>
+            <button class="btn btn-perigo" style="padding:4px 8px;" onclick="removerItem(${idx})">&times;</button>
+        </div>
+    `).join('');
+}
+
+function alterarQuantidade(idx, valor) {
+    carrinho[idx].quantidade = parseInt(valor) || 1;
+    renderizarCarrinho();
+    atualizarResumo();
+}
+
+function removerItem(idx) {
+    carrinho.splice(idx, 1);
+    renderizarCarrinho();
+    atualizarResumo();
+}
+
+function removerSelecionado() {
+    if (carrinho.length > 0) {
+        carrinho.pop();
+        renderizarCarrinho();
+        atualizarResumo();
+    }
+}
+
+function limparCarrinho() {
+    if (carrinho.length > 0 && confirm('Limpar todo o carrinho?')) {
+        carrinho = [];
+        renderizarCarrinho();
+        atualizarResumo();
+    }
+}
+
+function atualizarResumo() {
+    let subtotal = 0;
+    carrinho.forEach(item => {
+        subtotal += item.quantidade * item.precoUnitario;
+    });
+    const desconto = parseFloat(document.getElementById('desconto').value) || 0;
+    const total = subtotal - desconto;
+    const valorPago = parseFloat(document.getElementById('valor-pago').value) || 0;
+    const troco = Math.max(0, valorPago - total);
+
+    document.getElementById('resumo-subtotal').textContent = formatarMoeda(subtotal);
+    document.getElementById('resumo-desconto').textContent = formatarMoeda(desconto);
+    document.getElementById('resumo-total').textContent = formatarMoeda(total);
+    document.getElementById('resumo-troco').textContent = formatarMoeda(troco);
+}
+
+async function finalizarVenda() {
+    if (carrinho.length === 0) {
+        mostrarToast('Carrinho vazio!', 'erro');
+        return;
+    }
+
+    const desconto = parseFloat(document.getElementById('desconto').value) || 0;
+    const valorPago = parseFloat(document.getElementById('valor-pago').value) || 0;
+    const formaPagamento = document.getElementById('forma-pagamento').value;
+
+    const venda = {
+        nomeCliente: document.getElementById('cliente-nome').value,
+        cpfCliente: document.getElementById('cliente-cpf').value.replace(/\D/g, ''),
+        desconto: desconto,
+        valorPago: valorPago,
+        formaPagamento: formaPagamento,
+        itens: carrinho.map(item => ({
+            produto: { id: item.produto.id },
+            codigoBarras: item.produto.codigoBarras,
+            descricao: item.produto.nome,
+            quantidade: item.quantidade,
+            precoUnitario: item.precoUnitario,
+            desconto: item.desconto,
+            ncm: item.produto.ncm,
+            aliquotaIcms: item.produto.aliquotaIcms
+        }))
+    };
+
+    try {
+        const res = await fetch('/api/vendas/finalizar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(venda)
+        });
+
+        if (res.ok) {
+            vendaAtual = await res.json();
+            mostrarSucesso();
+        } else {
+            mostrarToast('Erro ao finalizar venda', 'erro');
+        }
+    } catch (e) {
+        mostrarToast('Erro de conexao (offline) - venda sera sincronizada depois', 'alerta');
+    }
+}
+
+async function mostrarSucesso() {
+    document.getElementById('sucesso-numero').textContent = 'Venda: ' + vendaAtual.numeroVenda;
+    document.getElementById('sucesso-total').textContent = 'Total: R$ ' + parseFloat(vendaAtual.total).toFixed(2);
+
+    // Busca o cupom fiscal
+    try {
+        const res = await fetch(`/api/vendas/fiscal/danfe/${vendaAtual.id}`);
+        if (res.ok) {
+            const cupom = await res.text();
+            document.getElementById('sucesso-cupom').textContent = cupom;
+        }
+    } catch (e) {
+        document.getElementById('sucesso-cupom').textContent = 'Cupom fiscal indisponivel.';
+    }
+
+    document.getElementById('modal-sucesso').style.display = 'flex';
+}
+
+function fecharModal() {
+    document.getElementById('modal-sucesso').style.display = 'none';
+}
+
+function imprimirCupom() {
+    const cupom = document.getElementById('sucesso-cupom').textContent;
+    const janela = window.open('', '', 'width=400,height=600');
+    janela.document.write('<pre style="font-family:monospace; font-size:12px;">' + cupom + '</pre>');
+    janela.document.close();
+    janela.print();
+}
+
+function novaVenda() {
+    carrinho = [];
+    vendaAtual = null;
+    document.getElementById('cliente-nome').value = '';
+    document.getElementById('cliente-cpf').value = '';
+    document.getElementById('desconto').value = '0';
+    document.getElementById('valor-pago').value = '';
+    renderizarCarrinho();
+    atualizarResumo();
+    fecharModal();
+    document.getElementById('codigo-barras').focus();
+}
+
+function mostrarToast(msg, tipo) {
+    const toast = document.createElement('div');
+    toast.className = 'toast ' + tipo;
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function formatarMoeda(valor) {
+    return 'R$ ' + parseFloat(valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Atalho: F2 finaliza venda
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'F2') {
+        e.preventDefault();
+        finalizarVenda();
+    }
+});
+</script>
+</body>
+</html>

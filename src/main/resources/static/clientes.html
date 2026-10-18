@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Offline - Clientes</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="logo">
+        <h1>PDV OFFLINE</h1>
+        <p>Sistema de Ponto de Venda</p>
+    </div>
+    <nav>
+        <a href="index.html"><span class="icone">&#128202;</span> Dashboard</a>
+        <a href="pdv.html"><span class="icone">&#128722;</span> PDV / Vendas</a>
+        <a href="produtos.html"><span class="icone">&#128230;</span> Produtos &amp; Estoque</a>
+        <a href="clientes.html" class="ativo"><span class="icone">&#128101;</span> Clientes</a>
+        <a href="historico.html"><span class="icone">&#128196;</span> Hist&oacute;rico</a>
+        <a href="fiscais.html"><span class="icone">&#128220;</span> Documentos Fiscais</a>
+        <a href="sincronizacao.html"><span class="icone">&#128260;</span> Sincroniza&ccedil;&atilde;o</a>
+    </nav>
+</aside>
+
+<main class="main-content">
+    <div class="cabecalho-pagina">
+        <h2>Clientes</h2>
+        <button class="btn btn-primario" onclick="abrirModal()">+ Novo Cliente</button>
+    </div>
+
+    <div class="tabela-wrapper">
+        <input type="text" id="busca" placeholder="Buscar por nome..." oninput="buscarClientes()" style="width:100%; padding:10px; border-radius:8px; border:1px solid #e0e0e0; margin-bottom:16px;">
+        <table id="tabela-clientes">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>CPF/CNPJ</th>
+                    <th>Cidade</th>
+                    <th>Telefone</th>
+                    <th>Email</th>
+                    <th>A&ccedil;&otilde;es</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</main>
+
+<div id="modal-cliente" class="modal-overlay" style="display:none;">
+    <div class="modal">
+        <h3 id="modal-titulo">Novo Cliente</h3>
+        <input type="hidden" id="cli-id">
+        <div class="grid-form">
+            <div class="campo" style="grid-column: span 2;"><label>Nome *</label><input type="text" id="cli-nome"></div>
+            <div class="campo"><label>CPF/CNPJ</label><input type="text" id="cli-cpf"></div>
+            <div class="campo"><label>Telefone</label><input type="text" id="cli-tel"></div>
+            <div class="campo" style="grid-column: span 2;"><label>Email</label><input type="email" id="cli-email"></div>
+            <div class="campo"><label>Endere&ccedil;o</label><input type="text" id="cli-end"></div>
+            <div class="campo"><label>Cidade</label><input type="text" id="cli-cid"></div>
+            <div class="campo"><label>UF</label><input type="text" id="cli-uf" maxlength="2"></div>
+            <div class="campo"><label>CEP</label><input type="text" id="cli-cep"></div>
+        </div>
+        <div class="modal-rodape">
+            <button class="btn btn-secundario" onclick="fecharModal()">Cancelar</button>
+            <button class="btn btn-primario" onclick="salvarCliente()">Salvar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+async function carregarClientes() {
+    const res = await fetch('/api/clientes');
+    const clientes = await res.json();
+    renderizar(clientes);
+}
+
+async function buscarClientes() {
+    const nome = document.getElementById('busca').value;
+    if (nome.length < 2) { carregarClientes(); return; }
+    const res = await fetch(`/api/clientes/buscar?nome=${nome}`);
+    renderizar(await res.json());
+}
+
+function renderizar(clientes) {
+    const tbody = document.querySelector('#tabela-clientes tbody');
+    tbody.innerHTML = clientes.map(c => `
+        <tr>
+            <td>${c.nome}</td>
+            <td>${c.cpfCnpj || '-'}</td>
+            <td>${c.cidade || '-'}</td>
+            <td>${c.telefone || '-'}</td>
+            <td>${c.email || '-'}</td>
+            <td>
+                <button class="btn btn-secundario" style="padding:4px 10px;" onclick="editarCliente(${c.id})">Editar</button>
+                <button class="btn btn-perigo" style="padding:4px 10px;" onclick="deletarCliente(${c.id})">Excluir</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function abrirModal() {
+    document.getElementById('modal-titulo').textContent = 'Novo Cliente';
+    ['cli-id','cli-nome','cli-cpf','cli-tel','cli-email','cli-end','cli-cid','cli-uf','cli-cep'].forEach(i => document.getElementById(i).value = '');
+    document.getElementById('modal-cliente').style.display = 'flex';
+}
+
+function fecharModal() {
+    document.getElementById('modal-cliente').style.display = 'none';
+}
+
+async function editarCliente(id) {
+    const res = await fetch(`/api/clientes/${id}`);
+    const c = await res.json();
+    document.getElementById('modal-titulo').textContent = 'Editar Cliente';
+    document.getElementById('cli-id').value = c.id;
+    document.getElementById('cli-nome').value = c.nome;
+    document.getElementById('cli-cpf').value = c.cpfCnpj || '';
+    document.getElementById('cli-tel').value = c.telefone || '';
+    document.getElementById('cli-email').value = c.email || '';
+    document.getElementById('cli-end').value = c.endereco || '';
+    document.getElementById('cli-cid').value = c.cidade || '';
+    document.getElementById('cli-uf').value = c.uf || '';
+    document.getElementById('cli-cep').value = c.cep || '';
+    document.getElementById('modal-cliente').style.display = 'flex';
+}
+
+async function salvarCliente() {
+    const id = document.getElementById('cli-id').value;
+    const cliente = {
+        nome: document.getElementById('cli-nome').value,
+        cpfCnpj: document.getElementById('cli-cpf').value,
+        telefone: document.getElementById('cli-tel').value,
+        email: document.getElementById('cli-email').value,
+        endereco: document.getElementById('cli-end').value,
+        cidade: document.getElementById('cli-cid').value,
+        uf: document.getElementById('cli-uf').value,
+        cep: document.getElementById('cli-cep').value
+    };
+    const url = id ? `/api/clientes/${id}` : '/api/clientes';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cliente)
+    });
+    if (res.ok) { fecharModal(); carregarClientes(); }
+    else alert('Erro ao salvar cliente');
+}
+
+async function deletarCliente(id) {
+    if (confirm('Excluir este cliente?')) {
+        await fetch(`/api/clientes/${id}`, { method: 'DELETE' });
+        carregarClientes();
+    }
+}
+
+carregarClientes();
+</script>
+</body>
+</html>

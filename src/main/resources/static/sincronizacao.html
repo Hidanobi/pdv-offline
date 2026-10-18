@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV Offline - Sincroniza&ccedil;&atilde;o</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<aside class="sidebar">
+    <div class="logo">
+        <h1>PDV OFFLINE</h1>
+        <p>Sistema de Ponto de Venda</p>
+    </div>
+    <nav>
+        <a href="index.html"><span class="icone">&#128202;</span> Dashboard</a>
+        <a href="pdv.html"><span class="icone">&#128722;</span> PDV / Vendas</a>
+        <a href="produtos.html"><span class="icone">&#128230;</span> Produtos &amp; Estoque</a>
+        <a href="clientes.html"><span class="icone">&#128101;</span> Clientes</a>
+        <a href="historico.html"><span class="icone">&#128196;</span> Hist&oacute;rico</a>
+        <a href="fiscais.html"><span class="icone">&#128220;</span> Documentos Fiscais</a>
+        <a href="sincronizacao.html" class="ativo"><span class="icone">&#128260;</span> Sincroniza&ccedil;&atilde;o</a>
+    </nav>
+</aside>
+
+<main class="main-content">
+    <div class="cabecalho-pagina">
+        <h2>Sincroniza&ccedil;&atilde;o Offline</h2>
+    </div>
+
+    <div class="grid-cards">
+        <div class="card">
+            <div class="card-label">Registros Pendentes</div>
+            <div class="card-valor" id="card-pendentes">0</div>
+            <div class="card-sub">Aguardando envio ao servidor</div>
+        </div>
+        <div class="card sucesso">
+            <div class="card-label">&Uacute;ltima Sincroniza&ccedil;&atilde;o</div>
+            <div class="card-valor" id="card-ultimo" style="font-size:18px;">-</div>
+            <div class="card-sub">Data/hora do ultimo sync</div>
+        </div>
+        <div class="card alerta">
+            <div class="card-label">Status</div>
+            <div class="card-valor" id="card-status" style="font-size:20px;">-</div>
+            <div class="card-sub">Estado da conexao</div>
+        </div>
+    </div>
+
+    <div class="painel" style="margin-bottom:20px;">
+        <h3>A&ccedil;&otilde;es de Sincroniza&ccedil;&atilde;o</h3>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-primario" onclick="sincronizar()">&#128260; Sincronizar Agora</button>
+            <button class="btn btn-secundario" onclick="limparEnviados()">&#128465; Limpar Registros Enviados</button>
+            <button class="btn btn-secundario" onclick="carregarDados()">&#128260; Atualizar Status</button>
+        </div>
+        <p style="margin-top:14px; font-size:13px; color:#666;">
+            <strong>Como funciona:</strong> O sistema opera 100% offline (banco de dados local em arquivo H2).
+            Todas as vendas, produtos e clientes s&atilde;o registrados localmente. Quando h&aacute; conex&atilde;o com
+            o servidor central (configurado em <code>application.properties</code>), os dados s&atilde;o enviados
+            automaticamente a cada 60 segundos. O estoque &eacute; atualizado tanto localmente quanto
+            ap&oacute;s a sincroniza&ccedil;&atilde;o com o servidor.
+        </p>
+    </div>
+
+    <div class="tabela-wrapper">
+        <h3>Fila de Sincroniza&ccedil;&atilde;o (Pendentes)</h3>
+        <table id="tabela-sync">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Entidade</th>
+                    <th>Opera&ccedil;&atilde;o</th>
+                    <th>Entidade ID</th>
+                    <th>Tentativas</th>
+                    <th>Data Cria&ccedil;&atilde;o</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</main>
+
+<script>
+async function carregarDados() {
+    try {
+        const res = await fetch('/api/sync/status');
+        const s = await res.json();
+        document.getElementById('card-pendentes').textContent = s.pendentes;
+        document.getElementById('card-ultimo').textContent = s.ultimaSincronizacao ?
+            new Date(s.ultimaSincronizacao).toLocaleString('pt-BR') : 'Nunca sincronizado';
+
+        const statusEl = document.getElementById('card-status');
+        if (s.pendentes > 0) {
+            statusEl.textContent = 'PENDENTE';
+            statusEl.style.color = 'var(--cor-erro)';
+        } else {
+            statusEl.textContent = 'SINCRONIZADO';
+            statusEl.style.color = 'var(--cor-sucesso)';
+        }
+    } catch (e) {
+        document.getElementById('card-status').textContent = 'OFFLINE';
+    }
+
+    const res2 = await fetch('/api/sync/pendentes');
+    const pendentes = await res2.json();
+    const tbody = document.querySelector('#tabela-sync tbody');
+    if (pendentes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#2e7d32; padding:30px;">Nenhum registro pendente. Tudo sincronizado!</td></tr>';
+    } else {
+        tbody.innerHTML = pendentes.map(p => `
+            <tr>
+                <td>${p.id}</td>
+                <td><strong>${p.entidade}</strong></td>
+                <td>${p.operacao}</td>
+                <td>${p.entidadeId}</td>
+                <td>${p.tentativas}</td>
+                <td>${new Date(p.dataCriacao).toLocaleString('pt-BR')}</td>
+                <td><span class="badge badge-alerta">${p.status}</span></td>
+            </tr>
+        `).join('');
+    }
+}
+
+async function sincronizar() {
+    const res = await fetch('/api/sync/sincronizar', { method: 'POST' });
+    const r = await res.json();
+    alert(r.mensagem);
+    carregarDados();
+}
+
+async function limparEnviados() {
+    if (confirm('Remover registros ja enviados da fila?')) {
+        await fetch('/api/sync/limpar', { method: 'DELETE' });
+        carregarDados();
+    }
+}
+
+carregarDados();
+setInterval(carregarDados, 15000);
+</script>
+</body>
+</html>
