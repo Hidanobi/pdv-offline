@@ -1,0 +1,38 @@
+# ===============================
+# BUILD / MAVEN
+# ===============================
+target/
+*.jar
+!.mvn/wrapper/maven-wrapper.jar
+
+# ===============================
+# BANCO DE DADOS LOCAL (H2)
+# Nao versionar o banco de dados local
+# ===============================
+data/
+pdv-data/
+*.mv.db
+*.trace.db
+
+# ===============================
+# LOGS
+# ===============================
+*.log
+
+# ===============================
+# IDE / EDITORES
+# ===============================
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+*.swp
+
+# ===============================
+# SISTEMA OPERACIONAL
+# ===============================
+Thumbs.db
+desktop.ini
+.DS_Store
